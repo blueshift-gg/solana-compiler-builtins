@@ -43,3 +43,41 @@ pub unsafe extern "C" fn memcmp(a: *const u8, b: *const u8, n: usize) -> i32 {
         0
     }
 }
+
+#[cfg(target_arch = "bpf")]
+#[no_mangle]
+pub extern "C" fn __multi3(a: i128, b: i128) -> i128 {
+    const HALF_BITS: u32 = 32;
+    const LOWER_MASK: u64 = u32::MAX as u64;
+
+    let x_low = a as u64;
+    let x_high = (a >> 64) as u64;
+    let y_low = b as u64;
+    let y_high = (b >> 64) as u64;
+
+    // Inline __mulddi3(x_low, y_low)
+    let mut low = (x_low & LOWER_MASK) * (y_low & LOWER_MASK);
+
+    let mut t = low >> HALF_BITS;
+    low &= LOWER_MASK;
+
+    t = t.wrapping_add((x_low >> HALF_BITS) * (y_low & LOWER_MASK));
+    low = low.wrapping_add((t & LOWER_MASK) << HALF_BITS);
+    let mut high = t >> HALF_BITS;
+
+    t = low >> HALF_BITS;
+    low &= LOWER_MASK;
+
+    t = t.wrapping_add((y_low >> HALF_BITS) * (x_low & LOWER_MASK));
+    low = low.wrapping_add((t & LOWER_MASK) << HALF_BITS);
+    high = high.wrapping_add(t >> HALF_BITS);
+
+    high = high.wrapping_add((x_low >> HALF_BITS) * (y_low >> HALF_BITS));
+
+    // r.s.high += x.s.high * y.s.low + x.s.low * y.s.high
+    high = high
+        .wrapping_add(x_high.wrapping_mul(y_low))
+        .wrapping_add(x_low.wrapping_mul(y_high));
+
+    (((high as u128) << 64) | (low as u128)) as i128
+}
