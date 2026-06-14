@@ -1,4 +1,5 @@
 #![cfg_attr(target_arch = "bpf", no_std)]
+#![cfg_attr(target_arch = "bpf", feature(asm_experimental_arch))]
 
 #[cfg(target_arch = "bpf")]
 const SOL_MEMCMP: usize = 0x5FDCDE31;
@@ -45,8 +46,8 @@ pub unsafe extern "C" fn memcmp(a: *const u8, b: *const u8, n: usize) -> i32 {
 }
 
 #[cfg(target_arch = "bpf")]
-#[no_mangle]
-pub extern "C" fn __multi3(a: i128, b: i128) -> i128 {
+#[unsafe(no_mangle)]
+pub unsafe fn __multi3(a: i128, b: i128) {
     const HALF_BITS: u32 = 32;
     const LOWER_MASK: u64 = u32::MAX as u64;
 
@@ -79,5 +80,17 @@ pub extern "C" fn __multi3(a: i128, b: i128) -> i128 {
         .wrapping_add(x_high.wrapping_mul(y_low))
         .wrapping_add(x_low.wrapping_mul(y_high));
 
-    (((high as u128) << 64) | (low as u128)) as i128
+    // LLVM23 returns i128 as two i64 values in r0 and r2.
+    // use assembly to match the ABI before we patch rustc
+    unsafe {
+        core::arch::asm!(
+            "r0 = {low}",
+            "r2 = {high}",
+            low = in(reg) low,
+            high = in(reg) high,
+            out("r0") _,
+            out("r2") _,
+            options(nomem, nostack),
+        );
+    }
 }
