@@ -4,7 +4,19 @@
 #[cfg(target_arch = "bpf")]
 const SOL_MEMCMP: usize = 0x5FDCDE31;
 #[cfg(target_arch = "bpf")]
+const SOL_MEMCPY: usize = 0x717CC4A3;
+#[cfg(target_arch = "bpf")]
+const SOL_MEMMOVE: usize = 0x434371F8;
+#[cfg(target_arch = "bpf")]
+const SOL_MEMSET: usize = 0x3770FB22;
+#[cfg(target_arch = "bpf")]
 const INLINE_MEMCMP_THRESHOLD: usize = 32;
+#[cfg(target_arch = "bpf")]
+const INLINE_MEMCPY_THRESHOLD: usize = 40;
+#[cfg(target_arch = "bpf")]
+const INLINE_MEMMOVE_THRESHOLD: usize = 40;
+#[cfg(target_arch = "bpf")]
+const INLINE_MEMSET_THRESHOLD: usize = 80;
 
 #[cfg(target_arch = "bpf")]
 #[inline(always)]
@@ -16,6 +28,36 @@ fn sol_memcmp(a: *const u8, b: *const u8, n: usize) -> i32 {
         syscall(a, b, n, &mut result as *mut i32);
     }
     result
+}
+
+#[cfg(target_arch = "bpf")]
+#[inline(always)]
+fn sol_memcpy(dst: *mut u8, src: *const u8, n: usize) {
+    let syscall: unsafe extern "C" fn(*mut u8, *const u8, usize) =
+        unsafe { core::mem::transmute(SOL_MEMCPY) };
+    unsafe {
+        syscall(dst, src, n);
+    }
+}
+
+#[cfg(target_arch = "bpf")]
+#[inline(always)]
+fn sol_memmove(dst: *mut u8, src: *const u8, n: usize) {
+    let syscall: unsafe extern "C" fn(*mut u8, *const u8, usize) =
+        unsafe { core::mem::transmute(SOL_MEMMOVE) };
+    unsafe {
+        syscall(dst, src, n);
+    }
+}
+
+#[cfg(target_arch = "bpf")]
+#[inline(always)]
+fn sol_memset(s: *mut u8, c: u8, n: usize) {
+    let syscall: unsafe extern "C" fn(*mut u8, u8, usize) =
+        unsafe { core::mem::transmute(SOL_MEMSET) };
+    unsafe {
+        syscall(s, c, n);
+    }
 }
 
 #[cfg(target_arch = "bpf")]
@@ -43,6 +85,58 @@ pub unsafe extern "C" fn memcmp(a: *const u8, b: *const u8, n: usize) -> i32 {
 
         0
     }
+}
+
+#[cfg(target_arch = "bpf")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bcmp(a: *const u8, b: *const u8, n: usize) -> i32 {
+    memcmp(a, b, n)
+}
+
+#[cfg(target_arch = "bpf")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn memcpy(dst: *mut u8, src: *const u8, n: usize) -> *mut u8 {
+    if n > INLINE_MEMCPY_THRESHOLD {
+        sol_memcpy(dst, src, n);
+    } else {
+        unsafe { copy_forward(dst, src, n) };
+    }
+    dst
+}
+
+#[cfg(target_arch = "bpf")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn memmove(dst: *mut u8, src: *const u8, n: usize) -> *mut u8 {
+    if n > INLINE_MEMMOVE_THRESHOLD {
+        sol_memmove(dst, src, n);
+    } else if (dst as usize) <= (src as usize) {
+        unsafe { copy_forward(dst, src, n) };
+    } else {
+        unsafe { copy_backward(dst, src, n) };
+    }
+    dst
+}
+
+#[cfg(target_arch = "bpf")]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn memset(s: *mut u8, c: i32, n: usize) -> *mut u8 {
+    let c = c as u8;
+    if n > INLINE_MEMSET_THRESHOLD {
+        sol_memset(s, c, n);
+    } else {
+        let pattern = (c as u64) * 0x0101_0101_0101_0101;
+        let mut i = 0usize;
+        while i + 8 <= n {
+            unsafe { core::ptr::write_unaligned(s.add(i) as *mut u64, pattern) };
+            i += 8;
+        }
+
+        while i < n {
+            unsafe { *s.add(i) = c };
+            i += 1;
+        }
+    }
+    s
 }
 
 #[cfg(target_arch = "bpf")]
@@ -92,5 +186,37 @@ pub unsafe fn __multi3(a: i128, b: i128) {
             out("r2") _,
             options(nomem, nostack),
         );
+    }
+}
+
+#[cfg(target_arch = "bpf")]
+#[inline(always)]
+unsafe fn copy_forward(dst: *mut u8, src: *const u8, n: usize) {
+    let mut i = 0usize;
+    while i + 8 <= n {
+        let w = unsafe { core::ptr::read_unaligned(src.add(i) as *const u64) };
+        unsafe { core::ptr::write_unaligned(dst.add(i) as *mut u64, w) };
+        i += 8;
+    }
+
+    while i < n {
+        unsafe { *dst.add(i) = *src.add(i) };
+        i += 1;
+    }
+}
+
+#[cfg(target_arch = "bpf")]
+#[inline(always)]
+unsafe fn copy_backward(dst: *mut u8, src: *const u8, n: usize) {
+    let mut i = n;
+    while i >= 8 {
+        i -= 8;
+        let w = unsafe { core::ptr::read_unaligned(src.add(i) as *const u64) };
+        unsafe { core::ptr::write_unaligned(dst.add(i) as *mut u64, w) };
+    }
+
+    while i > 0 {
+        i -= 1;
+        unsafe { *dst.add(i) = *src.add(i) };
     }
 }
