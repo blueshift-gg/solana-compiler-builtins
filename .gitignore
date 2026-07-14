@@ -1,0 +1,11 @@
+/target
+.DS_Store
+Cargo.lock
+.sbpf
+test-ledger
+deploy
+*.sh
+.npmrc
+program-test/target
+program-test/Cargo.lock
+

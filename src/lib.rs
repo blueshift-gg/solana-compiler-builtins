@@ -2,6 +2,9 @@
 #![cfg_attr(target_arch = "bpf", feature(asm_experimental_arch))]
 
 #[cfg(target_arch = "bpf")]
+use core::ffi::c_void;
+
+#[cfg(target_arch = "bpf")]
 const SOL_MEMCMP: usize = 0x5FDCDE31;
 #[cfg(target_arch = "bpf")]
 const SOL_MEMCPY: usize = 0x717CC4A3;
@@ -62,7 +65,10 @@ fn sol_memset(s: *mut u8, c: u8, n: usize) {
 
 #[cfg(target_arch = "bpf")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn memcmp(a: *const u8, b: *const u8, n: usize) -> i32 {
+pub unsafe extern "C" fn memcmp(a: *const c_void, b: *const c_void, n: usize) -> i32 {
+    let a = a.cast::<u8>();
+    let b = b.cast::<u8>();
+
     if n > INLINE_MEMCMP_THRESHOLD {
         sol_memcmp(a, b, n)
     } else {
@@ -89,50 +95,58 @@ pub unsafe extern "C" fn memcmp(a: *const u8, b: *const u8, n: usize) -> i32 {
 
 #[cfg(target_arch = "bpf")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn bcmp(a: *const u8, b: *const u8, n: usize) -> i32 {
+pub unsafe extern "C" fn bcmp(a: *const c_void, b: *const c_void, n: usize) -> i32 {
     memcmp(a, b, n)
 }
 
 #[cfg(target_arch = "bpf")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn memcpy(dst: *mut u8, src: *const u8, n: usize) -> *mut u8 {
+pub unsafe extern "C" fn memcpy(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void {
+    let dst_u8 = dst.cast::<u8>();
+    let src_u8 = src.cast::<u8>();
+
     if n > INLINE_MEMCPY_THRESHOLD {
-        sol_memcpy(dst, src, n);
+        sol_memcpy(dst_u8, src_u8, n);
     } else {
-        unsafe { copy_forward(dst, src, n) };
+        unsafe { copy_forward(dst_u8, src_u8, n) };
     }
     dst
 }
 
 #[cfg(target_arch = "bpf")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn memmove(dst: *mut u8, src: *const u8, n: usize) -> *mut u8 {
+pub unsafe extern "C" fn memmove(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void {
+    let dst_u8 = dst.cast::<u8>();
+    let src_u8 = src.cast::<u8>();
+
     if n > INLINE_MEMMOVE_THRESHOLD {
-        sol_memmove(dst, src, n);
-    } else if (dst as usize) <= (src as usize) {
-        unsafe { copy_forward(dst, src, n) };
+        sol_memmove(dst_u8, src_u8, n);
+    } else if (dst_u8 as usize) <= (src_u8 as usize) {
+        unsafe { copy_forward(dst_u8, src_u8, n) };
     } else {
-        unsafe { copy_backward(dst, src, n) };
+        unsafe { copy_backward(dst_u8, src_u8, n) };
     }
     dst
 }
 
 #[cfg(target_arch = "bpf")]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn memset(s: *mut u8, c: i32, n: usize) -> *mut u8 {
+pub unsafe extern "C" fn memset(s: *mut c_void, c: i32, n: usize) -> *mut c_void {
+    let s_u8 = s.cast::<u8>();
     let c = c as u8;
+
     if n > INLINE_MEMSET_THRESHOLD {
-        sol_memset(s, c, n);
+        sol_memset(s_u8, c, n);
     } else {
         let pattern = (c as u64) * 0x0101_0101_0101_0101;
         let mut i = 0usize;
         while i + 8 <= n {
-            unsafe { core::ptr::write_unaligned(s.add(i) as *mut u64, pattern) };
+            unsafe { core::ptr::write_unaligned(s_u8.add(i) as *mut u64, pattern) };
             i += 8;
         }
 
         while i < n {
-            unsafe { *s.add(i) = c };
+            unsafe { *s_u8.add(i) = c };
             i += 1;
         }
     }
