@@ -143,10 +143,10 @@ pub fn entrypoint(_input: *mut u8) -> u64 {
         if !unsafe { test_memcmp_eq(INLINE_MEMCMP_THRESHOLD) } {
             return 1;
         }
-        if !unsafe { test_memcmp_ne(INLINE_MEMCMP_THRESHOLD) } {
+        if !unsafe { test_memcmp_eq(INLINE_MEMCMP_THRESHOLD + 1) } {
             return 2;
         }
-        if !unsafe { test_memcmp_eq(INLINE_MEMCMP_THRESHOLD + 1) } {
+        if !unsafe { test_memcmp_ne(INLINE_MEMCMP_THRESHOLD) } {
             return 3;
         }
         if !unsafe { test_memcmp_ne(INLINE_MEMCMP_THRESHOLD + 1) } {
@@ -171,21 +171,27 @@ pub fn entrypoint(_input: *mut u8) -> u64 {
         if !unsafe { test_memmove_overlap_backward(INLINE_MEMMOVE_THRESHOLD) } {
             return 9;
         }
-        if !unsafe { test_memmove_overlap_forward(INLINE_MEMMOVE_THRESHOLD) } {
+        if !unsafe { test_memmove_overlap_backward(INLINE_MEMMOVE_THRESHOLD + 1) } {
             return 10;
+        }
+        if !unsafe { test_memmove_overlap_forward(INLINE_MEMMOVE_THRESHOLD) } {
+            return 11;
+        }
+        if !unsafe { test_memmove_overlap_forward(INLINE_MEMMOVE_THRESHOLD + 1) } {
+            return 12;
         }
 
         // memset
         if !unsafe { test_memset(INLINE_MEMSET_THRESHOLD, 0xAB) } {
-            return 11;
+            return 13;
         }
         if !unsafe { test_memset(INLINE_MEMSET_THRESHOLD + 1, 0xAB) } {
-            return 12;
+            return 14;
         }
 
         // __multi3
         if !test_multi3() {
-            return 13;
+            return 15;
         }
     }
     0

@@ -77,14 +77,14 @@ pub unsafe extern "C" fn memcmp(a: *const c_void, b: *const c_void, n: usize) ->
             let wa = unsafe { core::ptr::read_unaligned(a.add(i) as *const u64) };
             let wb = unsafe { core::ptr::read_unaligned(b.add(i) as *const u64) };
             if wa != wb {
-                return 1;
+                break;
             }
             i += 8;
         }
 
         while i < n {
             if unsafe { *a.add(i) != *b.add(i) } {
-                return 1;
+                return unsafe { *a.add(i) as i32 - *b.add(i) as i32 };
             }
             i += 1;
         }
