@@ -135,6 +135,38 @@ fn test_multi3() -> bool {
     prod == 0x3333_6666_9999_CCCCi128
 }
 
+#[cfg(target_arch = "bpf")]
+fn add_f64(a: f64, b: f64) -> f64 {
+    let mut a = a;
+    let mut b = b;
+    core::hint::black_box(&mut a);
+    core::hint::black_box(&mut b);
+    a + b
+}
+
+#[cfg(target_arch = "bpf")]
+fn mul_f64(a: f64, b: f64) -> f64 {
+    let mut a = a;
+    let mut b = b;
+    core::hint::black_box(&mut a);
+    core::hint::black_box(&mut b);
+    a * b
+}
+
+#[cfg(target_arch = "bpf")]
+fn test_adddf3() -> bool {
+    add_f64(3.5, 2.0).to_bits() == 5.5f64.to_bits()
+        && add_f64(-1.5, 0.25).to_bits() == (-1.25f64).to_bits()
+        && add_f64(1.0, -1.0).to_bits() == 0.0f64.to_bits()
+}
+
+#[cfg(target_arch = "bpf")]
+fn test_muldf3() -> bool {
+    mul_f64(3.5, 2.0).to_bits() == 7.0f64.to_bits()
+        && mul_f64(0.5, 0.5).to_bits() == 0.25f64.to_bits()
+        && mul_f64(-2.0, 3.0).to_bits() == (-6.0f64).to_bits()
+}
+
 #[unsafe(no_mangle)]
 pub fn entrypoint(_input: *mut u8) -> u64 {
     #[cfg(target_arch = "bpf")]
@@ -192,6 +224,14 @@ pub fn entrypoint(_input: *mut u8) -> u64 {
         // __multi3
         if !test_multi3() {
             return 15;
+        }
+
+        // __adddf3 / __muldf3
+        if !test_adddf3() {
+            return 16;
+        }
+        if !test_muldf3() {
+            return 17;
         }
     }
     0
