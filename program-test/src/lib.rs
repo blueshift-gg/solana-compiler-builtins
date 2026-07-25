@@ -141,7 +141,7 @@ fn add_f64(a: f64, b: f64) -> f64 {
     let mut b = b;
     core::hint::black_box(&mut a);
     core::hint::black_box(&mut b);
-    a + b
+    core::hint::black_box(a + b)
 }
 
 #[cfg(target_arch = "bpf")]
@@ -150,7 +150,7 @@ fn mul_f64(a: f64, b: f64) -> f64 {
     let mut b = b;
     core::hint::black_box(&mut a);
     core::hint::black_box(&mut b);
-    a * b
+    core::hint::black_box(a * b)
 }
 
 #[cfg(target_arch = "bpf")]
@@ -165,6 +165,35 @@ fn test_muldf3() -> bool {
     mul_f64(3.5, 2.0).to_bits() == 7.0f64.to_bits()
         && mul_f64(0.5, 0.5).to_bits() == 0.25f64.to_bits()
         && mul_f64(-2.0, 3.0).to_bits() == (-6.0f64).to_bits()
+}
+
+#[cfg(target_arch = "bpf")]
+fn is_nan(x: f64) -> bool {
+    (x.to_bits() & 0x7FFF_FFFF_FFFF_FFFF) > 0x7FF0_0000_0000_0000
+}
+
+#[cfg(target_arch = "bpf")]
+fn test_adddf3_ieee() -> bool {
+    is_nan(add_f64(f64::NAN, 1.0))
+        && add_f64(f64::INFINITY, 1.0).to_bits() == f64::INFINITY.to_bits()
+        && is_nan(add_f64(f64::INFINITY, f64::NEG_INFINITY))
+        && add_f64(0.0, -0.0).to_bits() == 0.0f64.to_bits()
+        && add_f64(-0.0, -0.0).to_bits() == (-0.0f64).to_bits()
+        && add_f64(f64::from_bits(1), f64::from_bits(1)).to_bits() == f64::from_bits(2).to_bits()
+        && add_f64(0.1, 0.2).to_bits() == (0.1f64 + 0.2f64).to_bits()
+        && add_f64(f64::MAX, f64::MAX).to_bits() == f64::INFINITY.to_bits()
+}
+
+#[cfg(target_arch = "bpf")]
+fn test_muldf3_ieee() -> bool {
+    is_nan(mul_f64(f64::NAN, 2.0))
+        && mul_f64(f64::INFINITY, 2.0).to_bits() == f64::INFINITY.to_bits()
+        && is_nan(mul_f64(f64::INFINITY, 0.0))
+        && mul_f64(-1.0, 0.0).to_bits() == (-0.0f64).to_bits()
+        && mul_f64(-1.0, -0.0).to_bits() == 0.0f64.to_bits()
+        && mul_f64(f64::from_bits(2), 0.5).to_bits() == f64::from_bits(1).to_bits()
+        && mul_f64(f64::MAX, 2.0).to_bits() == f64::INFINITY.to_bits()
+        && mul_f64(f64::from_bits(1), 0.5).to_bits() == 0.0f64.to_bits()
 }
 
 #[unsafe(no_mangle)]
@@ -232,6 +261,14 @@ pub fn entrypoint(_input: *mut u8) -> u64 {
         }
         if !test_muldf3() {
             return 17;
+        }
+
+        // __adddf3 / __muldf3 IEEE-754 special values
+        if !test_adddf3_ieee() {
+            return 18;
+        }
+        if !test_muldf3_ieee() {
+            return 19;
         }
     }
     0
