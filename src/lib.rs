@@ -1,6 +1,8 @@
 #![cfg_attr(target_arch = "bpf", no_std)]
 #![cfg_attr(target_arch = "bpf", feature(asm_experimental_arch))]
 
+mod fp;
+
 #[cfg(target_arch = "bpf")]
 use core::ffi::c_void;
 

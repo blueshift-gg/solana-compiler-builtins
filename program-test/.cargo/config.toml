@@ -9,7 +9,9 @@ rustflags = [
     "-C",
     "link-arg=--llvm-args=--bpf-stack-size=4096",
     "-C",
-    "link-arg=--export=__multi3",
+    "link-arg=--llvm-args=--bpf-allows-libcalls",
+    "-C",
+    "link-arg=--export=__multi3,__adddf3,__muldf3",
 ]
 
 [alias]
