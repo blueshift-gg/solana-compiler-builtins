@@ -291,3 +291,52 @@ pub extern "C" fn __muldf3(a: f64, b: f64) -> f64 {
 
     f64::from_bits(product_high)
 }
+
+#[cfg(target_arch = "bpf")]
+#[unsafe(no_mangle)]
+pub extern "C" fn __floatundidf(i: u64) -> f64 {
+    let significand_bits: u32 = 52;
+    let exponent_bits: u32 = 11;
+    let bits: u32 = 64;
+
+    if i == 0 {
+        return f64::from_bits(0);
+    }
+
+    let n = i.leading_zeros();
+    let i_m = i << n;
+    let m_base = i_m >> exponent_bits;
+    let dropped = i_m << (significand_bits + 1);
+
+    let adj = dropped.wrapping_sub((dropped >> (bits - 1)) & !m_base) >> (bits - 1);
+    let m = m_base.wrapping_add(adj);
+
+    let e = 1085u64 - n as u64;
+
+    f64::from_bits((e << significand_bits).wrapping_add(m))
+}
+
+#[cfg(target_arch = "bpf")]
+#[unsafe(no_mangle)]
+pub extern "C" fn __fixunsdfdi(f: f64) -> u64 {
+    let significand_bits: u32 = 52;
+
+    let one_rep: u64 = 0x3FF0_0000_0000_0000; // 1.0f64.to_bits()
+    let exponent_mask: u64 = 0x7FF0_0000_0000_0000;
+    let int_max_rep: u64 = 1087u64 << significand_bits;
+
+    let fbits = f.to_bits();
+
+    if fbits < one_rep {
+        0
+    } else if fbits < int_max_rep {
+        let m_base = fbits << (64 - significand_bits - 1);
+        let m = (1u64 << 63) | m_base;
+        let s = 1086u32 - (fbits >> significand_bits) as u32;
+        m >> s
+    } else if fbits <= exponent_mask {
+        u64::MAX
+    } else {
+        0
+    }
+}

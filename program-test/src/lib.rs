@@ -196,6 +196,71 @@ fn test_muldf3_ieee() -> bool {
         && mul_f64(f64::from_bits(1), 0.5).to_bits() == 0.0f64.to_bits()
 }
 
+#[cfg(target_arch = "bpf")]
+unsafe extern "C" {
+    fn __floatundidf(i: u64) -> f64;
+    fn __fixunsdfdi(f: f64) -> u64;
+}
+
+#[cfg(target_arch = "bpf")]
+fn u64_to_f64(i: u64) -> f64 {
+    let mut i = i;
+    core::hint::black_box(&mut i);
+    unsafe { core::hint::black_box(__floatundidf(i)) }
+}
+
+#[cfg(target_arch = "bpf")]
+fn f64_to_u64(f: f64) -> u64 {
+    let mut f = f;
+    core::hint::black_box(&mut f);
+    unsafe { core::hint::black_box(__fixunsdfdi(f)) }
+}
+
+#[cfg(target_arch = "bpf")]
+fn test_floatundidf() -> bool {
+    u64_to_f64(0).to_bits() == 0.0f64.to_bits()
+        && u64_to_f64(1).to_bits() == 1.0f64.to_bits()
+        && u64_to_f64(2).to_bits() == 2.0f64.to_bits()
+        && u64_to_f64(3).to_bits() == 0x4008_0000_0000_0000
+        && u64_to_f64(1u64 << 52).to_bits() == 0x4330_0000_0000_0000
+        && u64_to_f64((1u64 << 52) + 1).to_bits() == 0x4330_0000_0000_0001
+        && u64_to_f64((1u64 << 53) - 1).to_bits() == 0x433F_FFFF_FFFF_FFFF
+        && u64_to_f64(1u64 << 53).to_bits() == 0x4340_0000_0000_0000
+        && u64_to_f64(1u64 << 63).to_bits() == 0x43E0_0000_0000_0000
+        && u64_to_f64((1u64 << 53) + 1).to_bits() == 0x4340_0000_0000_0000
+        && u64_to_f64((1u64 << 53) + 3).to_bits() == 0x4340_0000_0000_0002
+        && u64_to_f64((1u64 << 54) + 2).to_bits() == 0x4350_0000_0000_0000
+        && u64_to_f64((1u64 << 54) + 6).to_bits() == 0x4350_0000_0000_0002
+        && u64_to_f64(0xFFFF_FFFF_FFFF_F800).to_bits() == 0x43EF_FFFF_FFFF_FFFF
+        && u64_to_f64(u64::MAX).to_bits() == 0x43F0_0000_0000_0000
+}
+
+#[cfg(target_arch = "bpf")]
+fn test_fixunsdfdi() -> bool {
+    // Truncation toward zero.
+    f64_to_u64(0.0) == 0
+        && f64_to_u64(0.5) == 0
+        && f64_to_u64(1.0) == 1
+        && f64_to_u64(1.9999999) == 1
+        && f64_to_u64(2.5) == 2
+        && f64_to_u64(255.75) == 255
+        && f64_to_u64(f64::from_bits(0x3FEF_FFFF_FFFF_FFFF)) == 0
+        && f64_to_u64(f64::from_bits(1)) == 0
+        && f64_to_u64(9007199254740992.0) == 9007199254740992 // 2^53
+        && f64_to_u64(9223372036854775808.0) == 9223372036854775808 // 2^63
+        && f64_to_u64(13835058055282163712.0) == 13835058055282163712 // 2^63 + 2^62
+        && f64_to_u64(f64::from_bits(0x43EF_FFFF_FFFF_FFFF)) == 18446744073709549568
+        && f64_to_u64(f64::from_bits(0x43F0_0000_0000_0000)) == u64::MAX // 2^64
+        && f64_to_u64(f64::MAX) == u64::MAX // huge finite, via the <= EXP_MASK branch
+        && f64_to_u64(f64::INFINITY) == u64::MAX
+        && f64_to_u64(-0.0) == 0
+        && f64_to_u64(-1.0) == 0
+        && f64_to_u64(-1e300) == 0
+        && f64_to_u64(f64::NEG_INFINITY) == 0
+        && f64_to_u64(f64::NAN) == 0
+        && f64_to_u64(f64::from_bits(0xFFF8_0000_0000_0000)) == 0
+}
+
 #[unsafe(no_mangle)]
 pub fn entrypoint(_input: *mut u8) -> u64 {
     #[cfg(target_arch = "bpf")]
@@ -269,6 +334,14 @@ pub fn entrypoint(_input: *mut u8) -> u64 {
         }
         if !test_muldf3_ieee() {
             return 19;
+        }
+
+        // __floatundidf / __fixunsdfdi
+        if !test_floatundidf() {
+            return 20;
+        }
+        if !test_fixunsdfdi() {
+            return 21;
         }
     }
     0
