@@ -261,6 +261,71 @@ fn test_fixunsdfdi() -> bool {
         && f64_to_u64(f64::from_bits(0xFFF8_0000_0000_0000)) == 0
 }
 
+#[cfg(target_arch = "bpf")]
+fn ge_f64(a: f64, b: f64) -> bool {
+    let mut a = a;
+    let mut b = b;
+    core::hint::black_box(&mut a);
+    core::hint::black_box(&mut b);
+    core::hint::black_box(a >= b)
+}
+
+#[cfg(target_arch = "bpf")]
+fn gt_f64(a: f64, b: f64) -> bool {
+    let mut a = a;
+    let mut b = b;
+    core::hint::black_box(&mut a);
+    core::hint::black_box(&mut b);
+    core::hint::black_box(a > b)
+}
+
+#[cfg(target_arch = "bpf")]
+fn test_gedf2() -> bool {
+    ge_f64(2.0, 1.0) // greater
+        && ge_f64(1.0, 1.0) // equal
+        && !ge_f64(1.0, 2.0) // less
+        && ge_f64(-1.0, -2.0) // both negative, greater
+        && !ge_f64(-2.0, -1.0) // both negative, less
+        && ge_f64(-1.0, -1.0) // both negative, equal
+        && ge_f64(0.0, -0.0) // +0 >= -0
+        && ge_f64(-0.0, 0.0) // -0 >= +0
+        && ge_f64(1.0, -1.0) // mixed sign
+        && !ge_f64(-1.0, 1.0)
+        && ge_f64(f64::INFINITY, f64::MAX)
+        && ge_f64(f64::MAX, f64::NEG_INFINITY)
+        && ge_f64(f64::INFINITY, f64::INFINITY) // equal +inf
+        && ge_f64(f64::NEG_INFINITY, f64::NEG_INFINITY) // equal -inf
+        && !ge_f64(f64::NEG_INFINITY, f64::INFINITY) // -inf < +inf
+        && ge_f64(f64::from_bits(1), 0.0) // smallest subnormal >= 0
+        && !ge_f64(f64::NAN, 1.0) // NaN is unordered
+        && !ge_f64(1.0, f64::NAN)
+        && !ge_f64(f64::NAN, f64::NAN)
+}
+
+#[cfg(target_arch = "bpf")]
+fn test_gtdf2() -> bool {
+    gt_f64(2.0, 1.0) // greater
+        && !gt_f64(1.0, 1.0) // equal is NOT greater
+        && !gt_f64(1.0, 2.0) // less
+        && gt_f64(-1.0, -2.0) // both negative, greater
+        && !gt_f64(-2.0, -1.0) // both negative, less
+        && !gt_f64(-1.0, -1.0) // both negative, equal is NOT greater
+        && !gt_f64(0.0, -0.0) // +0 is not > -0
+        && !gt_f64(-0.0, 0.0) // -0 is not > +0
+        && gt_f64(1.0, -1.0) // mixed sign
+        && !gt_f64(-1.0, 1.0)
+        && gt_f64(f64::INFINITY, f64::MAX)
+        && !gt_f64(f64::INFINITY, f64::INFINITY) // equal +inf is NOT greater
+        && !gt_f64(f64::NEG_INFINITY, f64::NEG_INFINITY) // equal -inf is NOT greater
+        && gt_f64(f64::INFINITY, f64::NEG_INFINITY) // +inf > -inf
+        && !gt_f64(f64::NEG_INFINITY, f64::INFINITY) // -inf is not > +inf
+        && gt_f64(f64::MIN_POSITIVE, 0.0) // smallest normal > 0
+        && gt_f64(f64::from_bits(1), 0.0) // smallest subnormal > 0
+        && !gt_f64(f64::NAN, 1.0) // NaN is unordered
+        && !gt_f64(1.0, f64::NAN)
+        && !gt_f64(f64::NAN, f64::NAN)
+}
+
 #[unsafe(no_mangle)]
 pub fn entrypoint(_input: *mut u8) -> u64 {
     #[cfg(target_arch = "bpf")]
@@ -342,6 +407,14 @@ pub fn entrypoint(_input: *mut u8) -> u64 {
         }
         if !test_fixunsdfdi() {
             return 21;
+        }
+
+        // __gedf2 / __gtdf2
+        if !test_gedf2() {
+            return 22;
+        }
+        if !test_gtdf2() {
+            return 23;
         }
     }
     0
