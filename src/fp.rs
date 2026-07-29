@@ -340,3 +340,58 @@ pub extern "C" fn __fixunsdfdi(f: f64) -> u64 {
         0
     }
 }
+
+#[cfg(target_arch = "bpf")]
+#[inline]
+fn cmp_f64_gt_ge(a: f64, b: f64) -> i64 {
+    let sign_bit: u64 = 1u64 << 63;
+    let abs_mask: u64 = sign_bit - 1;
+    let exponent_mask: u64 = 0x7FF0_0000_0000_0000;
+    let inf_rep: u64 = exponent_mask;
+
+    let a_rep = a.to_bits();
+    let b_rep = b.to_bits();
+    let a_abs = a_rep & abs_mask;
+    let b_abs = b_rep & abs_mask;
+
+    if a_abs > inf_rep || b_abs > inf_rep {
+        return -1;
+    }
+
+    if (a_abs | b_abs) == 0 {
+        return 0;
+    }
+
+    let a_srep = a_rep as i64;
+    let b_srep = b_rep as i64;
+
+    if (a_srep & b_srep) >= 0 {
+        if a_srep < b_srep {
+            -1
+        } else if a_srep == b_srep {
+            0
+        } else {
+            1
+        }
+    } else {
+        if a_srep > b_srep {
+            -1
+        } else if a_srep == b_srep {
+            0
+        } else {
+            1
+        }
+    }
+}
+
+#[cfg(target_arch = "bpf")]
+#[unsafe(no_mangle)]
+pub extern "C" fn __gedf2(a: f64, b: f64) -> i64 {
+    cmp_f64_gt_ge(a, b)
+}
+
+#[cfg(target_arch = "bpf")]
+#[unsafe(no_mangle)]
+pub extern "C" fn __gtdf2(a: f64, b: f64) -> i64 {
+    cmp_f64_gt_ge(a, b)
+}
