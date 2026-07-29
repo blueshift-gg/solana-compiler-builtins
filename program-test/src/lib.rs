@@ -326,95 +326,61 @@ fn test_gtdf2() -> bool {
         && !gt_f64(f64::NAN, f64::NAN)
 }
 
+pub mod sel {
+    pub const MEMCMP: u8 = 0;
+    pub const MEMCPY: u8 = 1;
+    pub const MEMMOVE: u8 = 2;
+    pub const MEMSET: u8 = 3;
+    pub const MULTI3: u8 = 4;
+    pub const ADDDF3: u8 = 5;
+    pub const MULDF3: u8 = 6;
+    pub const FLOATUNDIDF: u8 = 7;
+    pub const FIXUNSDFDI: u8 = 8;
+    pub const GEDF2: u8 = 9;
+    pub const GTDF2: u8 = 10;
+}
+
 #[unsafe(no_mangle)]
 pub fn entrypoint(_input: *mut u8) -> u64 {
     #[cfg(target_arch = "bpf")]
     {
-        // memcmp
-        if !unsafe { test_memcmp_eq(INLINE_MEMCMP_THRESHOLD) } {
+        let selector = unsafe { *_input.add(16) };
+
+        let ok = match selector {
+            sel::MEMCMP => unsafe {
+                test_memcmp_eq(INLINE_MEMCMP_THRESHOLD)
+                    && test_memcmp_eq(INLINE_MEMCMP_THRESHOLD + 1)
+                    && test_memcmp_ne(INLINE_MEMCMP_THRESHOLD)
+                    && test_memcmp_ne(INLINE_MEMCMP_THRESHOLD + 1)
+            },
+            sel::MEMCPY => unsafe {
+                test_memcpy(INLINE_MEMCPY_THRESHOLD) && test_memcpy(INLINE_MEMCPY_THRESHOLD + 1)
+            },
+            sel::MEMMOVE => unsafe {
+                test_memmove_nonoverlap(INLINE_MEMMOVE_THRESHOLD)
+                    && test_memmove_nonoverlap(INLINE_MEMMOVE_THRESHOLD + 1)
+                    && test_memmove_overlap_backward(INLINE_MEMMOVE_THRESHOLD)
+                    && test_memmove_overlap_backward(INLINE_MEMMOVE_THRESHOLD + 1)
+                    && test_memmove_overlap_forward(INLINE_MEMMOVE_THRESHOLD)
+                    && test_memmove_overlap_forward(INLINE_MEMMOVE_THRESHOLD + 1)
+            },
+            sel::MEMSET => unsafe {
+                test_memset(INLINE_MEMSET_THRESHOLD, 0xAB)
+                    && test_memset(INLINE_MEMSET_THRESHOLD + 1, 0xAB)
+            },
+            sel::MULTI3 => test_multi3(),
+            sel::ADDDF3 => test_adddf3() && test_adddf3_ieee(),
+            sel::MULDF3 => test_muldf3() && test_muldf3_ieee(),
+            sel::FLOATUNDIDF => test_floatundidf(),
+            sel::FIXUNSDFDI => test_fixunsdfdi(),
+            sel::GEDF2 => test_gedf2(),
+            sel::GTDF2 => test_gtdf2(),
+            // Unknown selector: fail loudly.
+            _ => false,
+        };
+
+        if !ok {
             return 1;
-        }
-        if !unsafe { test_memcmp_eq(INLINE_MEMCMP_THRESHOLD + 1) } {
-            return 2;
-        }
-        if !unsafe { test_memcmp_ne(INLINE_MEMCMP_THRESHOLD) } {
-            return 3;
-        }
-        if !unsafe { test_memcmp_ne(INLINE_MEMCMP_THRESHOLD + 1) } {
-            return 4;
-        }
-
-        // memcpy
-        if !unsafe { test_memcpy(INLINE_MEMCPY_THRESHOLD) } {
-            return 5;
-        }
-        if !unsafe { test_memcpy(INLINE_MEMCPY_THRESHOLD + 1) } {
-            return 6;
-        }
-
-        // memmove
-        if !unsafe { test_memmove_nonoverlap(INLINE_MEMMOVE_THRESHOLD) } {
-            return 7;
-        }
-        if !unsafe { test_memmove_nonoverlap(INLINE_MEMMOVE_THRESHOLD + 1) } {
-            return 8;
-        }
-        if !unsafe { test_memmove_overlap_backward(INLINE_MEMMOVE_THRESHOLD) } {
-            return 9;
-        }
-        if !unsafe { test_memmove_overlap_backward(INLINE_MEMMOVE_THRESHOLD + 1) } {
-            return 10;
-        }
-        if !unsafe { test_memmove_overlap_forward(INLINE_MEMMOVE_THRESHOLD) } {
-            return 11;
-        }
-        if !unsafe { test_memmove_overlap_forward(INLINE_MEMMOVE_THRESHOLD + 1) } {
-            return 12;
-        }
-
-        // memset
-        if !unsafe { test_memset(INLINE_MEMSET_THRESHOLD, 0xAB) } {
-            return 13;
-        }
-        if !unsafe { test_memset(INLINE_MEMSET_THRESHOLD + 1, 0xAB) } {
-            return 14;
-        }
-
-        // __multi3
-        if !test_multi3() {
-            return 15;
-        }
-
-        // __adddf3 / __muldf3
-        if !test_adddf3() {
-            return 16;
-        }
-        if !test_muldf3() {
-            return 17;
-        }
-
-        // __adddf3 / __muldf3 IEEE-754 special values
-        if !test_adddf3_ieee() {
-            return 18;
-        }
-        if !test_muldf3_ieee() {
-            return 19;
-        }
-
-        // __floatundidf / __fixunsdfdi
-        if !test_floatundidf() {
-            return 20;
-        }
-        if !test_fixunsdfdi() {
-            return 21;
-        }
-
-        // __gedf2 / __gtdf2
-        if !test_gedf2() {
-            return 22;
-        }
-        if !test_gtdf2() {
-            return 23;
         }
     }
     0
@@ -425,8 +391,9 @@ mod tests {
     use mollusk_svm::{result::Check, Mollusk};
     use solana_instruction::Instruction;
 
-    #[test]
-    fn builtins_test() {
+    use super::sel;
+
+    fn run(selector: u8) {
         let program_id = [2u8; 32].into();
         let mollusk = Mollusk::new(
             &program_id,
@@ -436,10 +403,65 @@ mod tests {
             &Instruction {
                 program_id,
                 accounts: vec![],
-                data: vec![],
+                data: vec![selector],
             },
             &[],
             &[Check::success()],
         );
+    }
+
+    #[test]
+    fn memcmp() {
+        run(sel::MEMCMP);
+    }
+
+    #[test]
+    fn memcpy() {
+        run(sel::MEMCPY);
+    }
+
+    #[test]
+    fn memmove() {
+        run(sel::MEMMOVE);
+    }
+
+    #[test]
+    fn memset() {
+        run(sel::MEMSET);
+    }
+
+    #[test]
+    fn multi3() {
+        run(sel::MULTI3);
+    }
+
+    #[test]
+    fn adddf3() {
+        run(sel::ADDDF3);
+    }
+
+    #[test]
+    fn muldf3() {
+        run(sel::MULDF3);
+    }
+
+    #[test]
+    fn floatundidf() {
+        run(sel::FLOATUNDIDF);
+    }
+
+    #[test]
+    fn fixunsdfdi() {
+        run(sel::FIXUNSDFDI);
+    }
+
+    #[test]
+    fn gedf2() {
+        run(sel::GEDF2);
+    }
+
+    #[test]
+    fn gtdf2() {
+        run(sel::GTDF2);
     }
 }
