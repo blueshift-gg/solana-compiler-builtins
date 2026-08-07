@@ -170,6 +170,19 @@ pub extern "C" fn __adddf3(a: f64, b: f64) -> f64 {
 
 #[cfg(target_arch = "bpf")]
 #[unsafe(no_mangle)]
+pub extern "C" fn __subdf3(a: f64, b: f64) -> f64 {
+    // IEEE-754 subtraction is addition with the sign of the second operand flipped.
+    __adddf3(a, f64::from_bits(b.to_bits() ^ (1u64 << 63)))
+}
+
+#[cfg(target_arch = "bpf")]
+#[unsafe(no_mangle)]
+pub extern "C" fn __negdf2(a: f64) -> f64 {
+    f64::from_bits(a.to_bits() ^ (1u64 << 63))
+}
+
+#[cfg(target_arch = "bpf")]
+#[unsafe(no_mangle)]
 pub extern "C" fn __muldf3(a: f64, b: f64) -> f64 {
     let one: u64 = 1;
     let zero: u64 = 0;
@@ -290,6 +303,112 @@ pub extern "C" fn __muldf3(a: f64, b: f64) -> f64 {
     }
 
     f64::from_bits(product_high)
+}
+
+#[cfg(target_arch = "bpf")]
+#[unsafe(no_mangle)]
+pub extern "C" fn __divdf3(a: f64, b: f64) -> f64 {
+    const SIGNIFICAND_BITS: u32 = 52;
+    const IMPLICIT_BIT: u64 = 1u64 << SIGNIFICAND_BITS;
+    const SIGNIFICAND_MASK: u64 = IMPLICIT_BIT - 1;
+    const SIGN_BIT: u64 = 1u64 << 63;
+    const EXPONENT_MASK: u64 = 0x7ff0_0000_0000_0000;
+    const INFINITY: u64 = EXPONENT_MASK;
+    const QUIET_BIT: u64 = IMPLICIT_BIT >> 1;
+    const QUIET_NAN: u64 = INFINITY | QUIET_BIT;
+
+    let a_rep = a.to_bits();
+    let b_rep = b.to_bits();
+    let a_abs = a_rep & !SIGN_BIT;
+    let b_abs = b_rep & !SIGN_BIT;
+    let sign = (a_rep ^ b_rep) & SIGN_BIT;
+
+    if a_abs > INFINITY {
+        return f64::from_bits(a_rep | QUIET_BIT);
+    }
+    if b_abs > INFINITY {
+        return f64::from_bits(b_rep | QUIET_BIT);
+    }
+    if a_abs == INFINITY {
+        return f64::from_bits(if b_abs == INFINITY {
+            QUIET_NAN
+        } else {
+            INFINITY | sign
+        });
+    }
+    if b_abs == INFINITY {
+        return f64::from_bits(sign);
+    }
+    if a_abs == 0 {
+        return f64::from_bits(if b_abs == 0 { QUIET_NAN } else { sign });
+    }
+    if b_abs == 0 {
+        return f64::from_bits(INFINITY | sign);
+    }
+
+    let mut a_exponent = (a_rep >> SIGNIFICAND_BITS) as i32 & 0x7ff;
+    let mut b_exponent = (b_rep >> SIGNIFICAND_BITS) as i32 & 0x7ff;
+    let mut numerator = a_rep & SIGNIFICAND_MASK;
+    let mut denominator = b_rep & SIGNIFICAND_MASK;
+    if a_exponent == 0 {
+        let (adjustment, significand) = normalize_f64(numerator);
+        a_exponent = adjustment;
+        numerator = significand;
+    }
+    if b_exponent == 0 {
+        let (adjustment, significand) = normalize_f64(denominator);
+        b_exponent = adjustment;
+        denominator = significand;
+    }
+    numerator |= IMPLICIT_BIT;
+    denominator |= IMPLICIT_BIT;
+    let mut exponent = a_exponent - b_exponent + 1023;
+
+    // Restoring binary division produces 55 fractional bits. That gives the
+    // 52 stored bits, the implicit bit, and three rounding bits without u128.
+    if numerator < denominator {
+        numerator <<= 1;
+        exponent -= 1;
+    }
+    let mut remainder = numerator - denominator;
+    let mut quotient = 1u64;
+    for _ in 0..55 {
+        quotient <<= 1;
+        remainder <<= 1;
+        if remainder >= denominator {
+            remainder -= denominator;
+            quotient |= 1;
+        }
+    }
+
+    let shift = if exponent > 0 {
+        3
+    } else {
+        3 + (1 - exponent) as u32
+    };
+    if shift >= 64 {
+        return f64::from_bits(sign);
+    }
+    let mut significand = quotient >> shift;
+    let discarded = quotient & ((1u64 << shift) - 1);
+    let halfway = 1u64 << (shift - 1);
+    if discarded > halfway || (discarded == halfway && (remainder != 0 || significand & 1 != 0)) {
+        significand += 1;
+    }
+
+    if exponent > 0 && significand == (IMPLICIT_BIT << 1) {
+        significand >>= 1;
+        exponent += 1;
+    }
+    if exponent >= 0x7ff {
+        return f64::from_bits(INFINITY | sign);
+    }
+    let exponent_bits = if exponent > 0 {
+        (exponent as u64) << SIGNIFICAND_BITS
+    } else {
+        0
+    };
+    f64::from_bits(sign | exponent_bits | (significand & SIGNIFICAND_MASK))
 }
 
 #[cfg(target_arch = "bpf")]

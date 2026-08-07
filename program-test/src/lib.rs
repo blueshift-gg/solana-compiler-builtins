@@ -154,6 +154,31 @@ fn mul_f64(a: f64, b: f64) -> f64 {
 }
 
 #[cfg(target_arch = "bpf")]
+fn sub_f64(a: f64, b: f64) -> f64 {
+    let mut a = a;
+    let mut b = b;
+    core::hint::black_box(&mut a);
+    core::hint::black_box(&mut b);
+    core::hint::black_box(a - b)
+}
+
+#[cfg(target_arch = "bpf")]
+fn div_f64(a: f64, b: f64) -> f64 {
+    let mut a = a;
+    let mut b = b;
+    core::hint::black_box(&mut a);
+    core::hint::black_box(&mut b);
+    core::hint::black_box(a / b)
+}
+
+#[cfg(target_arch = "bpf")]
+fn neg_f64(a: f64) -> f64 {
+    let mut a = a;
+    core::hint::black_box(&mut a);
+    core::hint::black_box(-a)
+}
+
+#[cfg(target_arch = "bpf")]
 fn test_adddf3() -> bool {
     add_f64(3.5, 2.0).to_bits() == 5.5f64.to_bits()
         && add_f64(-1.5, 0.25).to_bits() == (-1.25f64).to_bits()
@@ -165,6 +190,59 @@ fn test_muldf3() -> bool {
     mul_f64(3.5, 2.0).to_bits() == 7.0f64.to_bits()
         && mul_f64(0.5, 0.5).to_bits() == 0.25f64.to_bits()
         && mul_f64(-2.0, 3.0).to_bits() == (-6.0f64).to_bits()
+}
+
+#[cfg(target_arch = "bpf")]
+fn test_subdf3() -> bool {
+    sub_f64(3.5, 2.0).to_bits() == 1.5f64.to_bits()
+        && sub_f64(-1.5, 0.25).to_bits() == (-1.75f64).to_bits()
+        && sub_f64(1.0, 1.0).to_bits() == 0.0f64.to_bits()
+        && sub_f64(-0.0, 0.0).to_bits() == (-0.0f64).to_bits()
+        && sub_f64(0.0, -0.0).to_bits() == 0.0f64.to_bits()
+        && sub_f64(f64::MAX, f64::NEG_INFINITY).to_bits() == f64::INFINITY.to_bits()
+        && sub_f64(f64::NEG_INFINITY, f64::INFINITY).to_bits() == f64::NEG_INFINITY.to_bits()
+        && is_nan(sub_f64(f64::INFINITY, f64::INFINITY))
+        && is_nan(sub_f64(f64::NAN, 1.0))
+        && sub_f64(f64::MIN_POSITIVE, f64::from_bits(1)).to_bits()
+            == 0x000F_FFFF_FFFF_FFFF
+        && sub_f64(f64::from_bits(1), f64::from_bits(1)).to_bits() == 0
+}
+
+#[cfg(target_arch = "bpf")]
+fn test_divdf3() -> bool {
+    div_f64(7.0, 2.0).to_bits() == 3.5f64.to_bits()
+        && div_f64(-9.0, 4.0).to_bits() == (-2.25f64).to_bits()
+        && div_f64(1.0, 3.0).to_bits() == 0x3FD5_5555_5555_5555
+        && div_f64(f64::INFINITY, 2.0).to_bits() == f64::INFINITY.to_bits()
+        && div_f64(f64::NEG_INFINITY, -2.0).to_bits() == f64::INFINITY.to_bits()
+        && div_f64(2.0, f64::INFINITY).to_bits() == 0.0f64.to_bits()
+        && div_f64(-2.0, f64::INFINITY).to_bits() == (-0.0f64).to_bits()
+        && div_f64(1.0, 0.0).to_bits() == f64::INFINITY.to_bits()
+        && div_f64(1.0, -0.0).to_bits() == f64::NEG_INFINITY.to_bits()
+        && div_f64(-0.0, -3.0).to_bits() == 0.0f64.to_bits()
+        && is_nan(div_f64(0.0, 0.0))
+        && is_nan(div_f64(f64::INFINITY, f64::INFINITY))
+        && is_nan(div_f64(f64::NAN, 1.0))
+        && div_f64(f64::MAX, 0.5).to_bits() == f64::INFINITY.to_bits()
+        && div_f64(f64::MAX, f64::MAX).to_bits() == 1.0f64.to_bits()
+        && div_f64(f64::MIN_POSITIVE, 2.0).to_bits() == 0x0008_0000_0000_0000
+        && div_f64(f64::from_bits(1), f64::from_bits(1)).to_bits() == 1.0f64.to_bits()
+        && div_f64(1.0, f64::from_bits(0x3FF0_0000_0000_0001)).to_bits()
+            == 0x3FEF_FFFF_FFFF_FFFE
+        && div_f64(f64::from_bits(1), 2.0).to_bits() == 0
+}
+
+#[cfg(target_arch = "bpf")]
+fn test_negdf2() -> bool {
+    neg_f64(3.5).to_bits() == (-3.5f64).to_bits()
+        && neg_f64(-0.0).to_bits() == 0.0f64.to_bits()
+        && neg_f64(0.0).to_bits() == (-0.0f64).to_bits()
+        && neg_f64(f64::INFINITY).to_bits() == f64::NEG_INFINITY.to_bits()
+        && neg_f64(f64::NEG_INFINITY).to_bits() == f64::INFINITY.to_bits()
+        && neg_f64(f64::MIN_POSITIVE).to_bits() == (-f64::MIN_POSITIVE).to_bits()
+        && neg_f64(f64::from_bits(1)).to_bits() == 0x8000_0000_0000_0001
+        && neg_f64(f64::from_bits(0x7FF8_0000_0000_0001)).to_bits()
+            == 0xFFF8_0000_0000_0001
 }
 
 #[cfg(target_arch = "bpf")]
@@ -197,23 +275,17 @@ fn test_muldf3_ieee() -> bool {
 }
 
 #[cfg(target_arch = "bpf")]
-unsafe extern "C" {
-    fn __floatundidf(i: u64) -> f64;
-    fn __fixunsdfdi(f: f64) -> u64;
-}
-
-#[cfg(target_arch = "bpf")]
 fn u64_to_f64(i: u64) -> f64 {
     let mut i = i;
     core::hint::black_box(&mut i);
-    unsafe { core::hint::black_box(__floatundidf(i)) }
+    core::hint::black_box(i as f64)
 }
 
 #[cfg(target_arch = "bpf")]
 fn f64_to_u64(f: f64) -> u64 {
     let mut f = f;
     core::hint::black_box(&mut f);
-    unsafe { core::hint::black_box(__fixunsdfdi(f)) }
+    core::hint::black_box(f as u64)
 }
 
 #[cfg(target_arch = "bpf")]
@@ -338,6 +410,9 @@ pub mod sel {
     pub const FIXUNSDFDI: u8 = 8;
     pub const GEDF2: u8 = 9;
     pub const GTDF2: u8 = 10;
+    pub const SUBDF3: u8 = 11;
+    pub const DIVDF3: u8 = 12;
+    pub const NEGDF2: u8 = 13;
 }
 
 #[unsafe(no_mangle)]
@@ -371,6 +446,9 @@ pub fn entrypoint(_input: *mut u8) -> u64 {
             sel::MULTI3 => test_multi3(),
             sel::ADDDF3 => test_adddf3() && test_adddf3_ieee(),
             sel::MULDF3 => test_muldf3() && test_muldf3_ieee(),
+            sel::SUBDF3 => test_subdf3(),
+            sel::DIVDF3 => test_divdf3(),
+            sel::NEGDF2 => test_negdf2(),
             sel::FLOATUNDIDF => test_floatundidf(),
             sel::FIXUNSDFDI => test_fixunsdfdi(),
             sel::GEDF2 => test_gedf2(),
@@ -443,6 +521,21 @@ mod tests {
     #[test]
     fn muldf3() {
         run(sel::MULDF3);
+    }
+
+    #[test]
+    fn subdf3() {
+        run(sel::SUBDF3);
+    }
+
+    #[test]
+    fn divdf3() {
+        run(sel::DIVDF3);
+    }
+
+    #[test]
+    fn negdf2() {
+        run(sel::NEGDF2);
     }
 
     #[test]
