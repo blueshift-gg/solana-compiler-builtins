@@ -275,23 +275,17 @@ fn test_muldf3_ieee() -> bool {
 }
 
 #[cfg(target_arch = "bpf")]
-unsafe extern "C" {
-    fn __floatundidf(i: u64) -> f64;
-    fn __fixunsdfdi(f: f64) -> u64;
-}
-
-#[cfg(target_arch = "bpf")]
 fn u64_to_f64(i: u64) -> f64 {
     let mut i = i;
     core::hint::black_box(&mut i);
-    unsafe { core::hint::black_box(__floatundidf(i)) }
+    core::hint::black_box(i as f64)
 }
 
 #[cfg(target_arch = "bpf")]
 fn f64_to_u64(f: f64) -> u64 {
     let mut f = f;
     core::hint::black_box(&mut f);
-    unsafe { core::hint::black_box(__fixunsdfdi(f)) }
+    core::hint::black_box(f as u64)
 }
 
 #[cfg(target_arch = "bpf")]
