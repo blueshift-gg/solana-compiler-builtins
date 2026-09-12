@@ -126,13 +126,21 @@ unsafe fn test_memset(n: usize, c: u8) -> bool {
 }
 
 #[cfg(target_arch = "bpf")]
-fn test_multi3() -> bool {
-    let mut a: i128 = 0x1111_2222_3333_4444;
-    let mut b: i128 = 3;
+fn multiply_matches(mut a: i128, mut b: i128, expected: i128) -> bool {
     core::hint::black_box(&mut a);
     core::hint::black_box(&mut b);
-    let prod = a.wrapping_mul(b);
-    prod == 0x3333_6666_9999_CCCCi128
+    a.wrapping_mul(b) == expected
+}
+
+#[cfg(target_arch = "bpf")]
+fn test_multi3() -> bool {
+    multiply_matches(
+        0x1111_2222_3333_4444,
+        3,
+        0x3333_6666_9999_CCCCi128,
+    ) && multiply_matches(1i128 << 100, 3, 3i128 << 100)
+        && multiply_matches(-(1i128 << 100), 3, -(3i128 << 100))
+        && multiply_matches(i128::MAX, 2, -2)
 }
 
 #[cfg(target_arch = "bpf")]
