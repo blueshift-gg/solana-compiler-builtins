@@ -12,5 +12,4 @@ clippy:
 	@cargo +$(NIGHTLY_TOOLCHAIN) clippy --all --all-features --all-targets -- -D warnings
 
 program-test:
-	@cd program-test && cargo +$(NIGHTLY_TOOLCHAIN) build-bpf && cargo test
-
+	@cd program-test && cargo +$(NIGHTLY_TOOLCHAIN) build-bpf --locked && cargo test --locked

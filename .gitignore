@@ -7,5 +7,4 @@ deploy
 *.sh
 .npmrc
 program-test/target
-program-test/Cargo.lock
-
+!program-test/Cargo.lock
