@@ -3,3 +3,6 @@ name = "solana-compiler-builtins"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
+description = "Solana compiler builtins"
+repository = "https://github.com/blueshift-gg/solana-compiler-builtins"
+keywords = ["solana", "sbpf", "builtins", "no-std"]
