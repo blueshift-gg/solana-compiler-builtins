@@ -16,7 +16,11 @@ This crate provides SVM-optimized implementations of compiler-generated operatio
 
 ## Overriding a builtin
 
-Builtins are declared `weak_odr`, so you can replace any of them by defining the same symbol in your program or in one of its dependencies, as LLVM takes a strong definition over a weak one:
+Enable the `weak-linkage` feature to declare the builtins `weak_odr`. You can then replace any of them by defining the same symbol in your program or in one of its dependencies, as LLVM takes a strong definition over a weak one:
+
+```toml
+solana-compiler-builtins = { version = "0.2", features = ["weak-linkage"] }
+```
 
 ```rust
 #[unsafe(no_mangle)]
@@ -24,6 +28,10 @@ pub unsafe fn __multi3(a: i128, b: i128) -> i128 {
     // ...
 }
 ```
+
+Match the ABI of the definition you are replacing. `extern "C"` passes `i128` indirectly on this target, so `__multi3` has to use the Rust ABI; the `f64` builtins are `extern "C"`.
+
+Without the feature the builtins are strong, as they have always been, and a second definition of one is a `symbol multiply defined` link error.
 
 ## Contributing
 

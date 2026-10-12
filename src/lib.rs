@@ -1,5 +1,5 @@
 #![cfg_attr(target_arch = "bpf", no_std)]
-#![cfg_attr(target_arch = "bpf", feature(linkage))]
+#![cfg_attr(all(target_arch = "bpf", feature = "weak-linkage"), feature(linkage))]
 
 mod fp;
 
@@ -66,7 +66,7 @@ fn sol_memset(s: *mut u8, c: u8, n: usize) {
 }
 
 #[cfg(target_arch = "bpf")]
-#[linkage = "weak_odr"]
+#[cfg_attr(feature = "weak-linkage", linkage = "weak_odr")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn memcmp(a: *const c_void, b: *const c_void, n: usize) -> i32 {
     let a = a.cast::<u8>();
@@ -97,14 +97,14 @@ pub unsafe extern "C" fn memcmp(a: *const c_void, b: *const c_void, n: usize) ->
 }
 
 #[cfg(target_arch = "bpf")]
-#[linkage = "weak_odr"]
+#[cfg_attr(feature = "weak-linkage", linkage = "weak_odr")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn bcmp(a: *const c_void, b: *const c_void, n: usize) -> i32 {
     memcmp(a, b, n)
 }
 
 #[cfg(target_arch = "bpf")]
-#[linkage = "weak_odr"]
+#[cfg_attr(feature = "weak-linkage", linkage = "weak_odr")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn memcpy(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void {
     let dst_u8 = dst.cast::<u8>();
@@ -119,7 +119,7 @@ pub unsafe extern "C" fn memcpy(dst: *mut c_void, src: *const c_void, n: usize) 
 }
 
 #[cfg(target_arch = "bpf")]
-#[linkage = "weak_odr"]
+#[cfg_attr(feature = "weak-linkage", linkage = "weak_odr")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn memmove(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void {
     let dst_u8 = dst.cast::<u8>();
@@ -136,7 +136,7 @@ pub unsafe extern "C" fn memmove(dst: *mut c_void, src: *const c_void, n: usize)
 }
 
 #[cfg(target_arch = "bpf")]
-#[linkage = "weak_odr"]
+#[cfg_attr(feature = "weak-linkage", linkage = "weak_odr")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn memset(s: *mut c_void, c: i32, n: usize) -> *mut c_void {
     let s_u8 = s.cast::<u8>();
@@ -161,7 +161,7 @@ pub unsafe extern "C" fn memset(s: *mut c_void, c: i32, n: usize) -> *mut c_void
 }
 
 #[cfg(target_arch = "bpf")]
-#[linkage = "weak_odr"]
+#[cfg_attr(feature = "weak-linkage", linkage = "weak_odr")]
 #[unsafe(no_mangle)]
 pub unsafe fn __multi3(a: i128, b: i128) -> i128 {
     const HALF_BITS: u32 = 32;
