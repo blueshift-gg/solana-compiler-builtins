@@ -29,9 +29,7 @@ pub unsafe fn __multi3(a: i128, b: i128) -> i128 {
 }
 ```
 
-Match the ABI of the definition you are replacing. `extern "C"` passes `i128` indirectly on this target, so `__multi3` has to use the Rust ABI; the `f64` builtins are `extern "C"`.
-
-Without the feature the builtins are strong, as they have always been, and a second definition of one is a `symbol multiply defined` link error.
+Without the feature, builtins are strong so a second definition will result in a `symbol multiply defined` link error.
 
 ## Contributing
 
