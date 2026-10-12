@@ -14,6 +14,17 @@ This crate provides SVM-optimized implementations of compiler-generated operatio
 | 64-bit floating-point conversions | `__floatundidf`, `__fixunsdfdi` |
 | 64-bit floating-point comparisons | `__gedf2`, `__gtdf2` |
 
+## Overriding a builtin
+
+Builtins are declared `weak_odr`, so you can replace any of them by defining the same symbol in your program or in one of its dependencies, as LLVM takes a strong definition over a weak one:
+
+```rust
+#[unsafe(no_mangle)]
+pub unsafe fn __multi3(a: i128, b: i128) -> i128 {
+    // ...
+}
+```
+
 ## Contributing
 
 Missing a compiler builtin or have an idea to improve performance? [Open an issue](https://github.com/blueshift-gg/solana-compiler-builtins/issues). Contributions are welcome!

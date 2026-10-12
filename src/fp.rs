@@ -34,6 +34,7 @@ fn normalize_f64(significand: u64) -> (i32, u64) {
 }
 
 #[cfg(target_arch = "bpf")]
+#[linkage = "weak_odr"]
 #[unsafe(no_mangle)]
 pub extern "C" fn __adddf3(a: f64, b: f64) -> f64 {
     let one: u64 = 1;
@@ -169,6 +170,7 @@ pub extern "C" fn __adddf3(a: f64, b: f64) -> f64 {
 }
 
 #[cfg(target_arch = "bpf")]
+#[linkage = "weak_odr"]
 #[unsafe(no_mangle)]
 pub extern "C" fn __subdf3(a: f64, b: f64) -> f64 {
     // IEEE-754 subtraction is addition with the sign of the second operand flipped.
@@ -176,12 +178,14 @@ pub extern "C" fn __subdf3(a: f64, b: f64) -> f64 {
 }
 
 #[cfg(target_arch = "bpf")]
+#[linkage = "weak_odr"]
 #[unsafe(no_mangle)]
 pub extern "C" fn __negdf2(a: f64) -> f64 {
     f64::from_bits(a.to_bits() ^ (1u64 << 63))
 }
 
 #[cfg(target_arch = "bpf")]
+#[linkage = "weak_odr"]
 #[unsafe(no_mangle)]
 pub extern "C" fn __muldf3(a: f64, b: f64) -> f64 {
     let one: u64 = 1;
@@ -306,6 +310,7 @@ pub extern "C" fn __muldf3(a: f64, b: f64) -> f64 {
 }
 
 #[cfg(target_arch = "bpf")]
+#[linkage = "weak_odr"]
 #[unsafe(no_mangle)]
 pub extern "C" fn __divdf3(a: f64, b: f64) -> f64 {
     const SIGNIFICAND_BITS: u32 = 52;
@@ -412,6 +417,7 @@ pub extern "C" fn __divdf3(a: f64, b: f64) -> f64 {
 }
 
 #[cfg(target_arch = "bpf")]
+#[linkage = "weak_odr"]
 #[unsafe(no_mangle)]
 pub extern "C" fn __floatundidf(i: u64) -> f64 {
     let significand_bits: u32 = 52;
@@ -436,6 +442,7 @@ pub extern "C" fn __floatundidf(i: u64) -> f64 {
 }
 
 #[cfg(target_arch = "bpf")]
+#[linkage = "weak_odr"]
 #[unsafe(no_mangle)]
 pub extern "C" fn __fixunsdfdi(f: f64) -> u64 {
     let significand_bits: u32 = 52;
@@ -504,12 +511,14 @@ fn cmp_f64_gt_ge(a: f64, b: f64) -> i64 {
 }
 
 #[cfg(target_arch = "bpf")]
+#[linkage = "weak_odr"]
 #[unsafe(no_mangle)]
 pub extern "C" fn __gedf2(a: f64, b: f64) -> i64 {
     cmp_f64_gt_ge(a, b)
 }
 
 #[cfg(target_arch = "bpf")]
+#[linkage = "weak_odr"]
 #[unsafe(no_mangle)]
 pub extern "C" fn __gtdf2(a: f64, b: f64) -> i64 {
     cmp_f64_gt_ge(a, b)
