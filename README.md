@@ -9,7 +9,7 @@ This crate provides SVM-optimized implementations of compiler-generated operatio
 | Category | Symbols |
 | --- | --- |
 | Memory | `memcmp`, `bcmp`, `memcpy`, `memmove`, `memset` |
-| 128-bit integer arithmetic | `__multi3` |
+| 128-bit integer arithmetic | `__multi3`, `__udivti3`, `__umodti3` |
 | 64-bit floating-point arithmetic | `__adddf3`, `__subdf3`, `__negdf2`, `__muldf3`, `__divdf3` |
 | 64-bit floating-point conversions | `__floatundidf`, `__fixunsdfdi` |
 | 64-bit floating-point comparisons | `__gedf2`, `__gtdf2` |
