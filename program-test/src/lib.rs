@@ -145,6 +145,28 @@ fn test_multi3() -> bool {
 }
 
 #[cfg(target_arch = "bpf")]
+fn udivmod_matches(mut n: u128, mut d: u128, q: u128, r: u128) -> bool {
+    core::hint::black_box(&mut n);
+    core::hint::black_box(&mut d);
+    n / d == q && n % d == r
+}
+
+#[cfg(target_arch = "bpf")]
+fn test_udivmodti3() -> bool {
+    udivmod_matches(0x64, 0x7, 0xE, 0x2)
+        && udivmod_matches(0xFFFF_FFFF_FFFF_FFFF, 0x3, 0x5555_5555_5555_5555, 0x0)
+        && udivmod_matches(0x10_0000_0000_0000_0000_0000_3039, 0x3E8, 0x418_9374_BC6A_7EF9_DB22_D0F1, 0x2D1)
+        && udivmod_matches(0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF, 0xFFFF_FFFF, 0x1_0000_0001_0000_0001_0000_0001, 0x0)
+        && udivmod_matches(0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF, 0xDE0_B6B3_A764_0000, 0x12_725D_D1D2_43AB_A0E7, 0x532_DF79_74C3_FFFF)
+        && udivmod_matches(0x8000_0000_0000_0001_0000_0000_0000_0005, 0x1_0000_0000_0000_0001, 0x8000_0000_0000_0000, 0x8000_0000_0000_0005)
+        && udivmod_matches(0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF, 0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF, 0x1, 0x0)
+        && udivmod_matches(0x1_0000_0000_0000_0000_0000, 0x10_0000_0000_0000_0000_0000_0000, 0x0, 0x1_0000_0000_0000_0000_0000)
+        && udivmod_matches(0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF, 0x1, 0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF, 0x0)
+        && udivmod_matches(0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF, 0x1_0000_0000_0000_0000, 0xFFFF_FFFF_FFFF_FFFF, 0xFFFF_FFFF_FFFF_FFFF)
+        && udivmod_matches(0x1_8EE9_0FF6_C373_E0EE_4E3F_0AD2, 0xDB4_DA5F_49F8_B478, 0x1D_1A94_9D8C, 0xCD9_8CBF_CE2E_C132)
+}
+
+#[cfg(target_arch = "bpf")]
 fn add_f64(a: f64, b: f64) -> f64 {
     let mut a = a;
     let mut b = b;
@@ -422,6 +444,7 @@ pub mod sel {
     pub const SUBDF3: u8 = 11;
     pub const DIVDF3: u8 = 12;
     pub const NEGDF2: u8 = 13;
+    pub const UDIVMODTI3: u8 = 14;
 }
 
 #[unsafe(no_mangle)]
@@ -458,6 +481,7 @@ pub fn entrypoint(_input: *mut u8) -> u64 {
             sel::SUBDF3 => test_subdf3(),
             sel::DIVDF3 => test_divdf3(),
             sel::NEGDF2 => test_negdf2(),
+            sel::UDIVMODTI3 => test_udivmodti3(),
             sel::FLOATUNDIDF => test_floatundidf(),
             sel::FIXUNSDFDI => test_fixunsdfdi(),
             sel::GEDF2 => test_gedf2(),
@@ -545,6 +569,11 @@ mod tests {
     #[test]
     fn negdf2() {
         run(sel::NEGDF2);
+    }
+
+    #[test]
+    fn udivmodti3() {
+        run(sel::UDIVMODTI3);
     }
 
     #[test]
