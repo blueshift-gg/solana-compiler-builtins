@@ -19,7 +19,7 @@ This crate provides SVM-optimized implementations of compiler-generated operatio
 Enable the `weak-linkage` feature to declare the builtins `weak_odr`. You can then replace any of them by defining the same symbol in your program or in one of its dependencies, as LLVM takes a strong definition over a weak one:
 
 ```toml
-solana-compiler-builtins = { version = "0.2", features = ["weak-linkage"] }
+solana-compiler-builtins = { version = "0.3", features = ["weak-linkage"] }
 ```
 
 ```rust
