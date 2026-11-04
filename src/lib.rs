@@ -438,3 +438,29 @@ pub unsafe fn __udivti3(n: u128, d: u128) -> u128 {
 pub unsafe fn __umodti3(n: u128, d: u128) -> u128 {
     udivmod128(n, d).1
 }
+
+// The quotient truncates toward zero and the remainder takes the dividend's sign, as in Rust,
+// and i128::MIN / -1 wraps to i128::MIN, though safe Rust panics before it gets here
+#[cfg(target_arch = "bpf")]
+#[cfg_attr(feature = "weak-linkage", linkage = "weak_odr")]
+#[unsafe(no_mangle)]
+pub unsafe fn __divti3(n: i128, d: i128) -> i128 {
+    let q = udivmod128(n.unsigned_abs(), d.unsigned_abs()).0 as i128;
+    if (n < 0) != (d < 0) {
+        q.wrapping_neg()
+    } else {
+        q
+    }
+}
+
+#[cfg(target_arch = "bpf")]
+#[cfg_attr(feature = "weak-linkage", linkage = "weak_odr")]
+#[unsafe(no_mangle)]
+pub unsafe fn __modti3(n: i128, d: i128) -> i128 {
+    let r = udivmod128(n.unsigned_abs(), d.unsigned_abs()).1 as i128;
+    if n < 0 {
+        r.wrapping_neg()
+    } else {
+        r
+    }
+}
