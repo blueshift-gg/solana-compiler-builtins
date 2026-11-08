@@ -374,11 +374,21 @@ fn udivmod128(n: u128, d: u128) -> (u128, u128) {
         return (0, n);
     }
 
+    // Close operands give a quotient of 1, so one subtraction answers them before any estimate,
+    // and the high halves alone rule it out when n_hi - d_hi passes d_hi + 1
+    if n_hi - d_hi <= d_hi.wrapping_add(1) {
+        let (r_lo, borrow) = n_lo.overflowing_sub(d_lo);
+        let r_hi = n_hi - d_hi - borrow as u64;
+        if r_hi < d_hi || (r_hi == d_hi && r_lo < d_lo) {
+            return (1, ((r_hi as u128) << 64) | r_lo as u128);
+        }
+    }
+
     let s = clz64(d_hi);
 
-    // With 32 quotient bits or fewer one native division of the top 64 bits lands at most a few
-    // units low, the shift test equals s - clz64(n_hi) < 32 without counting zeros on large quotients
-    if s < 32 || n_hi >> (95 - s) == 0 {
+    // With 33 quotient bits or fewer one native division of the top 64 bits lands at most a few
+    // units low, the shift test equals s - clz64(n_hi) <= 32 without counting zeros on large quotients
+    if s <= 32 || n_hi >> (96 - s) == 0 {
         let k = clz64(n_hi);
         let (nt, dt) = if k == 0 {
             (n_hi, d_hi)
