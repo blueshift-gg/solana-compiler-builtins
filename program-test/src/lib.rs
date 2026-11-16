@@ -5,7 +5,7 @@ use solana_compiler_builtins as _;
 use core::ffi::c_void;
 
 #[cfg(target_arch = "bpf")]
-const INLINE_MEMCMP_THRESHOLD: usize = 2;
+const INLINE_MEMCMP_THRESHOLD: usize = 1;
 #[cfg(target_arch = "bpf")]
 const INLINE_MEMCPY_THRESHOLD: usize = 2;
 #[cfg(target_arch = "bpf")]
