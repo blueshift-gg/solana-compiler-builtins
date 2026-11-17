@@ -17,11 +17,11 @@ const SOL_MEMSET: usize = 0x3770FB22;
 #[cfg(target_arch = "bpf")]
 const INLINE_MEMCMP_THRESHOLD: usize = 32;
 #[cfg(target_arch = "bpf")]
-const INLINE_MEMCPY_THRESHOLD: usize = 40;
+const INLINE_MEMCPY_THRESHOLD: usize = 2;
 #[cfg(target_arch = "bpf")]
-const INLINE_MEMMOVE_THRESHOLD: usize = 40;
+const INLINE_MEMMOVE_THRESHOLD: usize = 2;
 #[cfg(target_arch = "bpf")]
-const INLINE_MEMSET_THRESHOLD: usize = 80;
+const INLINE_MEMSET_THRESHOLD: usize = 2;
 
 #[cfg(target_arch = "bpf")]
 #[inline(always)]
