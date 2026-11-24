@@ -17,11 +17,14 @@ const SOL_MEMSET: usize = 0x3770FB22;
 #[cfg(target_arch = "bpf")]
 const INLINE_MEMCMP_THRESHOLD: usize = 32;
 #[cfg(target_arch = "bpf")]
-const INLINE_MEMCPY_THRESHOLD: usize = 40;
+const INLINE_MEMCPY_THRESHOLD: usize = 2;
 #[cfg(target_arch = "bpf")]
-const INLINE_MEMMOVE_THRESHOLD: usize = 40;
+const INLINE_MEMMOVE_FORWARD_THRESHOLD: usize = 2;
+// LLVM lowers two forward bytes to straight-line copies, but keeps a backward countdown loop.
 #[cfg(target_arch = "bpf")]
-const INLINE_MEMSET_THRESHOLD: usize = 80;
+const INLINE_MEMMOVE_BACKWARD_THRESHOLD: usize = 1;
+#[cfg(target_arch = "bpf")]
+const INLINE_MEMSET_THRESHOLD: usize = 2;
 
 #[cfg(target_arch = "bpf")]
 #[inline(always)]
@@ -125,10 +128,12 @@ pub unsafe extern "C" fn memmove(dst: *mut c_void, src: *const c_void, n: usize)
     let dst_u8 = dst.cast::<u8>();
     let src_u8 = src.cast::<u8>();
 
-    if n > INLINE_MEMMOVE_THRESHOLD {
+    if n > INLINE_MEMMOVE_FORWARD_THRESHOLD {
         sol_memmove(dst_u8, src_u8, n);
     } else if (dst_u8 as usize) <= (src_u8 as usize) {
         unsafe { copy_forward(dst_u8, src_u8, n) };
+    } else if n > INLINE_MEMMOVE_BACKWARD_THRESHOLD {
+        sol_memmove(dst_u8, src_u8, n);
     } else {
         unsafe { copy_backward(dst_u8, src_u8, n) };
     }
