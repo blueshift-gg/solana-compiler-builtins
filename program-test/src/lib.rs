@@ -1,129 +1,12 @@
 #![cfg_attr(target_arch = "bpf", no_std)]
 use solana_compiler_builtins as _;
 
-#[cfg(target_arch = "bpf")]
-use core::ffi::c_void;
-
-#[cfg(target_arch = "bpf")]
-const INLINE_MEMCMP_THRESHOLD: usize = 32;
-#[cfg(target_arch = "bpf")]
-const INLINE_MEMCPY_THRESHOLD: usize = 40;
-#[cfg(target_arch = "bpf")]
-const INLINE_MEMMOVE_THRESHOLD: usize = 40;
-#[cfg(target_arch = "bpf")]
-const INLINE_MEMSET_THRESHOLD: usize = 80;
+mod mem_bench;
 
 #[cfg(target_arch = "bpf")]
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
     unsafe { core::hint::unreachable_unchecked() }
-}
-
-#[cfg(target_arch = "bpf")]
-unsafe extern "C" {
-    fn memcmp(a: *const c_void, b: *const c_void, n: usize) -> i32;
-    fn memcpy(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void;
-    fn memmove(dst: *mut c_void, src: *const c_void, n: usize) -> *mut c_void;
-    fn memset(s: *mut c_void, c: i32, n: usize) -> *mut c_void;
-}
-
-#[cfg(target_arch = "bpf")]
-fn make_array<const N: usize>(n: u8) -> [u8; N] {
-    // return array of fixed size N filled with n
-    [n; N]
-}
-
-#[cfg(target_arch = "bpf")]
-unsafe fn test_memcmp_eq(n: usize) -> bool {
-    let a = make_array::<100>(3);
-    let b = make_array::<100>(3);
-    unsafe { memcmp(a.as_ptr().cast::<c_void>(), b.as_ptr().cast::<c_void>(), n) == 0 }
-}
-
-#[cfg(target_arch = "bpf")]
-unsafe fn test_memcmp_ne(n: usize) -> bool {
-    let a = make_array::<100>(4);
-    let mut b = make_array::<100>(4);
-
-    unsafe {
-        // flip the last byte in b
-        let last = core::ptr::read_volatile(b.as_ptr().add(n - 1));
-        core::ptr::write_volatile(b.as_mut_ptr().add(n - 1), last ^ 0xFF);
-    }
-
-    unsafe { memcmp(a.as_ptr().cast::<c_void>(), b.as_ptr().cast::<c_void>(), n) != 0 }
-}
-
-#[cfg(target_arch = "bpf")]
-unsafe fn test_memcpy(n: usize) -> bool {
-    let src = make_array::<100>(1);
-    let mut dst = make_array::<100>(2);
-    unsafe {
-        // copy from src to dst
-        memcpy(
-            dst.as_mut_ptr().cast::<c_void>(),
-            src.as_ptr().cast::<c_void>(),
-            n,
-        );
-    }
-    dst[..n] == src[..n]
-}
-
-#[cfg(target_arch = "bpf")]
-unsafe fn test_memmove_nonoverlap(n: usize) -> bool {
-    let src = make_array::<100>(1);
-    let mut dst = make_array::<100>(2);
-    unsafe {
-        memmove(
-            dst.as_mut_ptr().cast::<c_void>(),
-            src.as_ptr().cast::<c_void>(),
-            n,
-        );
-    }
-    dst[..n] == src[..n]
-}
-
-#[cfg(target_arch = "bpf")]
-unsafe fn test_memmove_overlap_backward(n: usize) -> bool {
-    let mut a = make_array::<100>(5);
-    // change byte at position n to 6
-    a[n] = 6;
-    unsafe {
-        // copy backward (shift right by 1)
-        memmove(
-            a.as_mut_ptr().add(1).cast::<c_void>(),
-            a.as_ptr().cast::<c_void>(),
-            n,
-        );
-    }
-    // a should go back to its original state
-    a[1..1 + n] == make_array::<100>(5)[..n]
-}
-
-#[cfg(target_arch = "bpf")]
-unsafe fn test_memmove_overlap_forward(n: usize) -> bool {
-    let mut a = make_array::<100>(5);
-    // change byte at position 0 to 6
-    a[0] = 6;
-    unsafe {
-        // copy forward (shift left by 1)
-        memmove(
-            a.as_mut_ptr().cast::<c_void>(),
-            a.as_ptr().add(1).cast::<c_void>(),
-            n,
-        );
-    }
-    // a should go back to its original state
-    a[..n] == make_array::<100>(5)[..n]
-}
-
-#[cfg(target_arch = "bpf")]
-unsafe fn test_memset(n: usize, c: u8) -> bool {
-    let mut a = make_array::<100>(0xFF);
-    unsafe {
-        memset(a.as_mut_ptr().cast::<c_void>(), c as i32, n);
-    }
-    a[..n] == make_array::<100>(c)[..n]
 }
 
 #[cfg(target_arch = "bpf")]
@@ -443,65 +326,66 @@ fn test_gtdf2() -> bool {
         && !gt_f64(f64::NAN, f64::NAN)
 }
 
-pub mod sel {
-    pub const MEMCMP: u8 = 0;
-    pub const MEMCPY: u8 = 1;
-    pub const MEMMOVE: u8 = 2;
-    pub const MEMSET: u8 = 3;
-    pub const MULTI3: u8 = 4;
-    pub const ADDDF3: u8 = 5;
-    pub const MULDF3: u8 = 6;
-    pub const FLOATUNDIDF: u8 = 7;
-    pub const FIXUNSDFDI: u8 = 8;
-    pub const GEDF2: u8 = 9;
-    pub const GTDF2: u8 = 10;
-    pub const SUBDF3: u8 = 11;
-    pub const DIVDF3: u8 = 12;
-    pub const NEGDF2: u8 = 13;
-    pub const UDIVMODTI3: u8 = 14;
+#[derive(Clone, Copy)]
+#[repr(u8)]
+pub enum Selector {
+    Multi3,
+    AddDf3,
+    MulDf3,
+    FloatUnDiDf,
+    FixUnsDfDi,
+    GeDf2,
+    GtDf2,
+    SubDf3,
+    DivDf3,
+    NegDf2,
+    UDivModTi3,
+    MemBench,
+}
+
+impl Selector {
+    #[cfg(target_arch = "bpf")]
+    fn from_u8(value: u8) -> Option<Self> {
+        [
+            Self::Multi3,
+            Self::AddDf3,
+            Self::MulDf3,
+            Self::FloatUnDiDf,
+            Self::FixUnsDfDi,
+            Self::GeDf2,
+            Self::GtDf2,
+            Self::SubDf3,
+            Self::DivDf3,
+            Self::NegDf2,
+            Self::UDivModTi3,
+            Self::MemBench,
+        ]
+        .get(value as usize)
+        .copied()
+    }
 }
 
 #[unsafe(no_mangle)]
 pub fn entrypoint(_input: *mut u8) -> u64 {
     #[cfg(target_arch = "bpf")]
     {
-        let selector = unsafe { *_input.add(16) };
+        let Some(selector) = Selector::from_u8(unsafe { *_input.add(16) }) else {
+            return 1;
+        };
 
         let ok = match selector {
-            sel::MEMCMP => unsafe {
-                test_memcmp_eq(INLINE_MEMCMP_THRESHOLD)
-                    && test_memcmp_eq(INLINE_MEMCMP_THRESHOLD + 1)
-                    && test_memcmp_ne(INLINE_MEMCMP_THRESHOLD)
-                    && test_memcmp_ne(INLINE_MEMCMP_THRESHOLD + 1)
-            },
-            sel::MEMCPY => unsafe {
-                test_memcpy(INLINE_MEMCPY_THRESHOLD) && test_memcpy(INLINE_MEMCPY_THRESHOLD + 1)
-            },
-            sel::MEMMOVE => unsafe {
-                test_memmove_nonoverlap(INLINE_MEMMOVE_THRESHOLD)
-                    && test_memmove_nonoverlap(INLINE_MEMMOVE_THRESHOLD + 1)
-                    && test_memmove_overlap_backward(INLINE_MEMMOVE_THRESHOLD)
-                    && test_memmove_overlap_backward(INLINE_MEMMOVE_THRESHOLD + 1)
-                    && test_memmove_overlap_forward(INLINE_MEMMOVE_THRESHOLD)
-                    && test_memmove_overlap_forward(INLINE_MEMMOVE_THRESHOLD + 1)
-            },
-            sel::MEMSET => unsafe {
-                test_memset(INLINE_MEMSET_THRESHOLD, 0xAB)
-                    && test_memset(INLINE_MEMSET_THRESHOLD + 1, 0xAB)
-            },
-            sel::MULTI3 => test_multi3(),
-            sel::ADDDF3 => test_adddf3() && test_adddf3_ieee(),
-            sel::MULDF3 => test_muldf3() && test_muldf3_ieee(),
-            sel::SUBDF3 => test_subdf3(),
-            sel::DIVDF3 => test_divdf3(),
-            sel::NEGDF2 => test_negdf2(),
-            sel::UDIVMODTI3 => test_udivmodti3(),
-            sel::FLOATUNDIDF => test_floatundidf(),
-            sel::FIXUNSDFDI => test_fixunsdfdi(),
-            sel::GEDF2 => test_gedf2(),
-            sel::GTDF2 => test_gtdf2(),
-            // Unknown selector: fail loudly.
-            _ => false,
+            Selector::Multi3 => test_multi3(),
+            Selector::AddDf3 => test_adddf3() && test_adddf3_ieee(),
+            Selector::MulDf3 => test_muldf3() && test_muldf3_ieee(),
+            Selector::SubDf3 => test_subdf3(),
+            Selector::DivDf3 => test_divdf3(),
+            Selector::NegDf2 => test_negdf2(),
+            Selector::UDivModTi3 => test_udivmodti3(),
+            Selector::FloatUnDiDf => test_floatundidf(),
+            Selector::FixUnsDfDi => test_fixunsdfdi(),
+            Selector::GeDf2 => test_gedf2(),
+            Selector::GtDf2 => test_gtdf2(),
+            Selector::MemBench => unsafe { mem_bench::run(_input) },
         };
 
         if !ok {
@@ -516,19 +400,19 @@ mod tests {
     use mollusk_svm::{result::Check, Mollusk};
     use solana_instruction::Instruction;
 
-    use super::sel;
+    use super::Selector;
 
-    fn run(selector: u8) {
+    fn run(selector: Selector) {
         let program_id = [2u8; 32].into();
-        let mollusk = Mollusk::new(
+        Mollusk::new(
             &program_id,
             "target/bpfel-unknown-none/release/libprogram_test",
-        );
-        mollusk.process_and_validate_instruction(
+        )
+        .process_and_validate_instruction(
             &Instruction {
                 program_id,
                 accounts: vec![],
-                data: vec![selector],
+                data: vec![selector as u8],
             },
             &[],
             &[Check::success()],
@@ -536,77 +420,57 @@ mod tests {
     }
 
     #[test]
-    fn memcmp() {
-        run(sel::MEMCMP);
-    }
-
-    #[test]
-    fn memcpy() {
-        run(sel::MEMCPY);
-    }
-
-    #[test]
-    fn memmove() {
-        run(sel::MEMMOVE);
-    }
-
-    #[test]
-    fn memset() {
-        run(sel::MEMSET);
-    }
-
-    #[test]
     fn multi3() {
-        run(sel::MULTI3);
+        run(Selector::Multi3);
     }
 
     #[test]
     fn adddf3() {
-        run(sel::ADDDF3);
+        run(Selector::AddDf3);
     }
 
     #[test]
     fn muldf3() {
-        run(sel::MULDF3);
+        run(Selector::MulDf3);
     }
 
     #[test]
     fn subdf3() {
-        run(sel::SUBDF3);
+        run(Selector::SubDf3);
     }
 
     #[test]
     fn divdf3() {
-        run(sel::DIVDF3);
+        run(Selector::DivDf3);
     }
 
     #[test]
     fn negdf2() {
-        run(sel::NEGDF2);
+        run(Selector::NegDf2);
     }
 
     #[test]
     fn udivmodti3() {
-        run(sel::UDIVMODTI3);
+        run(Selector::UDivModTi3);
     }
 
     #[test]
     fn floatundidf() {
-        run(sel::FLOATUNDIDF);
+        run(Selector::FloatUnDiDf);
     }
 
     #[test]
     fn fixunsdfdi() {
-        run(sel::FIXUNSDFDI);
+        run(Selector::FixUnsDfDi);
     }
 
     #[test]
     fn gedf2() {
-        run(sel::GEDF2);
+        run(Selector::GeDf2);
     }
 
     #[test]
     fn gtdf2() {
-        run(sel::GTDF2);
+        run(Selector::GtDf2);
     }
 }
